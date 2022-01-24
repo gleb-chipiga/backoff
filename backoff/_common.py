@@ -15,16 +15,24 @@ _logger.setLevel(logging.INFO)
 
 # Evaluate arg that can be either a fixed value or a callable.
 def _maybe_call(f, *args, **kwargs):
-    return f(*args, **kwargs) if callable(f) else f
+    if callable(f):
+        try:
+            return f(*args, **kwargs)
+        except TypeError:
+            return f
+    else:
+        return f
 
 
 def _init_wait_gen(wait_gen, wait_gen_kwargs):
     kwargs = {k: _maybe_call(v) for k, v in wait_gen_kwargs.items()}
-    return wait_gen(**kwargs)
+    initialized = wait_gen(**kwargs)
+    initialized.send(None)  # Initialize with an empty send
+    return initialized
 
 
-def _next_wait(wait, jitter, elapsed, max_time):
-    value = next(wait)
+def _next_wait(wait, send_value, jitter, elapsed, max_time):
+    value = wait.send(send_value)
     try:
         if jitter is not None:
             seconds = jitter(value)
